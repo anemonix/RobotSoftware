@@ -70,6 +70,99 @@ typedef struct rtnPacket{
 
 rtnPacket _rtnPacket;
 
+
+/*
+ * Set up Motor pins and set them all to 0
+ */
+void setupPins()
+{
+  
+  pinMode(leftMotorForward, OUTPUT);
+  pinMode(leftMotorBackward, OUTPUT);
+  pinMode(rightMotorForward, OUTPUT);
+  pinMode(rightMotorBackward, OUTPUT);
+  analogWrite(leftMotorForward, 0);
+  analogWrite(leftMotorBackward, 0);
+  analogWrite(rightMotorForward, 0);
+  analogWrite(rightMotorBackward, 0);
+  pinMode(leftIRSensor, INPUT_PULLUP);
+  pinMode(rightIRSensor, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(leftIRSensor), leftInterrupt, RISING);
+  attachInterrupt(digitalPinToInterrupt(rightIRSensor), rightInterrupt, RISING);
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, LOW);
+}
+
+/*
+ * Sets motor to 0 and robot to face north with 0 velocity
+ */
+void setup()
+{
+  Serial.begin(9600);
+  setupIMU();
+  setupPins();
+  setupWiFi();
+  setupPort();
+
+  analogWrite(leftMotorForward, 0);
+  analogWrite(leftMotorBackward, 0);
+  analogWrite(rightMotorForward, 0);
+  analogWrite(rightMotorBackward, 0);
+
+  _cmdPacket.vel = 0;
+  _cmdPacket.phi = 270;
+  _cmdPacket.mode = 2;
+  
+}
+
+
+/*
+ * Set up wifi connection
+ */
+void setupWiFi()
+{
+  WiFi.setPins(8,7,4,2);
+  WiFi.begin(ssid,pass);
+  delay(10000);
+}
+
+/*
+ * Set up local port
+ */
+void setupPort()
+{
+  udp.begin(localPort);
+}
+
+/*
+ * Setting up the IMU (calibration values and all)
+ */
+void setupIMU()
+{
+  Wire.begin();
+  compass.init();
+  compass.enableDefault();
+  compass.m_min = (LSM303::vector<int16_t>){-4848, -2881, -1357};
+  compass.m_max = (LSM303::vector<int16_t>){+1136, +2758, +3524};
+  startingHeadingDeg = compass.heading();
+}
+
+/*
+ * Checks constantly for updates and send info to left/right motors
+ */
+void loop()
+{
+  updateIMU();
+  checkUDP();
+  rightMotorKP(_cmdPacket.vel);
+  leftMotorKP(_cmdPacket.vel);
+  phiKP(_cmdPacket.phi);
+  timeUpdate();
+}
+
+/*
+ * Count ticks in left wheel to calculate distance
+ */
 void leftInterrupt()
 {
   tickCountLeft += 1;
@@ -79,6 +172,10 @@ void leftInterrupt()
   xGlobal += ((deltaX * cos(phiGlobalRad)) + deltaY*sin(phiGlobalRad));
   yGlobal += ((deltaX * sin(phiGlobalRad)) + deltaY*cos(phiGlobalRad));
 }
+
+/*
+ * Count ticks in right wheel to calculate distance
+ */
 void rightInterrupt()
 {
   tickCountRight += 1;
@@ -155,59 +252,6 @@ void timeUpdate()
     updateMotors();
     t2 = t1;
   }
-}
-
-/*
- * Set up Motor pins and set them all to 0
- */
-void setupPins()
-{
-  
-  pinMode(leftMotorForward, OUTPUT);
-  pinMode(leftMotorBackward, OUTPUT);
-  pinMode(rightMotorForward, OUTPUT);
-  pinMode(rightMotorBackward, OUTPUT);
-  analogWrite(leftMotorForward, 0);
-  analogWrite(leftMotorBackward, 0);
-  analogWrite(rightMotorForward, 0);
-  analogWrite(rightMotorBackward, 0);
-  pinMode(leftIRSensor, INPUT_PULLUP);
-  pinMode(rightIRSensor, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(leftIRSensor), leftInterrupt, RISING);
-  attachInterrupt(digitalPinToInterrupt(rightIRSensor), rightInterrupt, RISING);
-  pinMode(LED_BUILTIN, OUTPUT);
-  digitalWrite(LED_BUILTIN, LOW);
-}
-
-/*
- * Set up wifi connection
- */
-void setupWiFi()
-{
-  WiFi.setPins(8,7,4,2);
-  WiFi.begin(ssid,pass);
-  delay(10000);
-}
-
-/*
- * Set up local port
- */
-void setupPort()
-{
-  udp.begin(localPort);
-}
-
-/*
- * Setting up the IMU (calibration values and all)
- */
-void setupIMU()
-{
-  Wire.begin();
-  compass.init();
-  compass.enableDefault();
-  compass.m_min = (LSM303::vector<int16_t>){-4848, -2881, -1357};
-  compass.m_max = (LSM303::vector<int16_t>){+1136, +2758, +3524};
-  startingHeadingDeg = compass.heading();
 }
 
 /*
@@ -329,39 +373,4 @@ void updateMotors()
   analogWrite(leftMotorBackward, 0);
   analogWrite(rightMotorForward, rightMotorSet);
   analogWrite(rightMotorBackward, 0);
-}
-
-/*
- * Sets motor to 0 and robot to face north with 0 velocity
- */
-void setup()
-{
-  Serial.begin(9600);
-  setupIMU();
-  setupPins();
-  setupWiFi();
-  setupPort();
-
-  analogWrite(leftMotorForward, 0);
-  analogWrite(leftMotorBackward, 0);
-  analogWrite(rightMotorForward, 0);
-  analogWrite(rightMotorBackward, 0);
-
-  _cmdPacket.vel = 0;
-  _cmdPacket.phi = 270;
-  _cmdPacket.mode = 2;
-  
-}
-
-/*
- * Checks constantly for updates and send info to left/right motors
- */
-void loop()
-{
-  updateIMU();
-  checkUDP();
-  rightMotorKP(_cmdPacket.vel);
-  leftMotorKP(_cmdPacket.vel);
-  phiKP(_cmdPacket.phi);
-  timeUpdate();
 }
